@@ -6,7 +6,7 @@
     <title>Cek Base Bot WA - GrenXharimau</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/acorn/8.11.3/acorn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/eslint@8.57.0/lib/linter/linter.min.js"></script>
+    <script src="https://unpkg.com/eslint-linter-browserify@8.57.0/linter.min.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -31,6 +31,9 @@
         .file-size { color: #6b7280; font-size: 12px; margin-right: 10px; }
         .remove-btn { color: #6b7280; cursor: pointer; font-size: 18px; background: none; border: none; }
         .remove-btn:hover { color: #ef4444; }
+
+        .check-btn { width: 100%; background: #3b82f6; color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.3s; display: none; margin-bottom: 20px; }
+        .check-btn:hover { background: #2563eb; }
 
         .result-box { border-radius: 12px; padding: 20px; margin-bottom: 20px; display: none; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -84,6 +87,8 @@
             <button class="remove-btn" onclick="resetApp()">✕</button>
         </div>
 
+        <button class="check-btn" id="checkBtn" onclick="prosesCek()">🔍 Cek Base Sekarang</button>
+
         <div class="result-box error" id="errorBox">
             <div class="result-header"><span>❌</span> Error Sintaks (Fatal)</div>
             <div class="result-desc">Kode tidak bisa dijalankan sama sekali.</div>
@@ -111,10 +116,14 @@
     </div>
 
     <script>
+        let fileCode = "";
+        let fileNameStr = "";
+
         const fileInput = document.getElementById('fileInput');
         const fileInfo = document.getElementById('fileInfo');
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
+        const checkBtn = document.getElementById('checkBtn');
         
         const errorBox = document.getElementById('errorBox');
         const errorDetails = document.getElementById('errorDetails');
@@ -127,6 +136,7 @@
             const file = e.target.files[0];
             if (!file) return;
 
+            fileNameStr = file.name;
             fileName.textContent = file.name;
             fileSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
             fileInfo.style.display = 'flex';
@@ -141,15 +151,22 @@
 
             const reader = new FileReader();
             reader.onload = function(event) {
-                const code = event.target.result;
-                cekKode(code, file.name);
+                fileCode = event.target.result;
+                checkBtn.style.display = 'block';
             };
             reader.readAsText(file);
         });
 
-        function cekKode(code, filename) {
+        function prosesCek() {
+            if (!fileCode) return;
+            
+            checkBtn.style.display = 'none';
+            errorBox.style.display = 'none';
+            warningBox.style.display = 'none';
+            successBox.style.display = 'none';
+
             try {
-                Acorn.parse(code, { 
+                Acorn.parse(fileCode, { 
                     ecmaVersion: 'latest', 
                     sourceType: 'script',
                     allowReturnOutsideFunction: true,
@@ -158,7 +175,7 @@
             } catch (error) {
                 let errorMsg = error.message;
                 let loc = error.loc || { line: 0, column: 0 };
-                let lines = code.split('\n');
+                let lines = fileCode.split('\n');
                 let errorLine = loc.line || 1;
                 let startLine = Math.max(1, errorLine - 2);
                 let endLine = Math.min(lines.length, errorLine + 2);
@@ -201,7 +218,7 @@
                     startSender: "readonly", activeSenderSocks: "readonly", mainSock: "readonly"
                 };
 
-                const messages = linter.verify(code, {
+                const messages = linter.verify(fileCode, {
                     env: { es2021: true, node: true, browser: false },
                     globals: botGlobals,
                     parserOptions: { ecmaVersion: 'latest', sourceType: 'script' },
@@ -214,7 +231,7 @@
                         'no-unused-vars': 'off',
                         'no-console': 'off'
                     }
-                }, { filename: filename || 'index.js' });
+                }, { filename: fileNameStr || 'index.js' });
 
                 const fatalErrors = messages.filter(m => m.severity === 2);
                 const warnings = messages.filter(m => m.severity === 1);
@@ -265,7 +282,9 @@
 
         function resetApp() {
             fileInput.value = "";
+            fileCode = "";
             fileInfo.style.display = 'none';
+            checkBtn.style.display = 'none';
             errorBox.style.display = 'none';
             warningBox.style.display = 'none';
             successBox.style.display = 'none';
@@ -273,4 +292,4 @@
         }
     </script>
 </body>
-</html>-
+</html>
