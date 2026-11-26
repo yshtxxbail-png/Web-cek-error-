@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cek Base Bot WA - GrenXharimau</title>
     
+    <!-- Library Acorn & ESLint -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/acorn/8.11.3/acorn.min.js"></script>
-    <script src="https://unpkg.com/eslint-linter-browserify@8.57.0/linter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/eslint@8.57.0/lib/linter/linter.min.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -31,9 +32,6 @@
         .file-size { color: #6b7280; font-size: 12px; margin-right: 10px; }
         .remove-btn { color: #6b7280; cursor: pointer; font-size: 18px; background: none; border: none; }
         .remove-btn:hover { color: #ef4444; }
-
-        .check-btn { width: 100%; background: #3b82f6; color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.3s; display: none; margin-bottom: 20px; }
-        .check-btn:hover { background: #2563eb; }
 
         .result-box { border-radius: 12px; padding: 20px; margin-bottom: 20px; display: none; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -87,8 +85,6 @@
             <button class="remove-btn" onclick="resetApp()">✕</button>
         </div>
 
-        <button class="check-btn" id="checkBtn" onclick="prosesCek()">🔍 Cek Base Sekarang</button>
-
         <div class="result-box error" id="errorBox">
             <div class="result-header"><span>❌</span> Error Sintaks (Fatal)</div>
             <div class="result-desc">Kode tidak bisa dijalankan sama sekali.</div>
@@ -116,14 +112,10 @@
     </div>
 
     <script>
-        let fileCode = "";
-        let fileNameStr = "";
-
         const fileInput = document.getElementById('fileInput');
         const fileInfo = document.getElementById('fileInfo');
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
-        const checkBtn = document.getElementById('checkBtn');
         
         const errorBox = document.getElementById('errorBox');
         const errorDetails = document.getElementById('errorDetails');
@@ -136,15 +128,11 @@
             const file = e.target.files[0];
             if (!file) return;
 
-            // Ambil nama asli file (jika ter-encode URL, decode dulu)
-            let rawName = decodeURIComponent(file.name);
-            fileNameStr = rawName;
-            
-            fileName.textContent = rawName;
+            fileName.textContent = file.name;
             fileSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
             fileInfo.style.display = 'flex';
 
-            // Sembunyikan hasil sebelumnya
+            // Reset Tampilan
             errorBox.style.display = 'none';
             warningBox.style.display = 'none';
             successBox.style.display = 'none';
@@ -155,38 +143,25 @@
 
             const reader = new FileReader();
             reader.onload = function(event) {
-                fileCode = event.target.result;
-                // TOMBOL CEK SELALU MUNCUL SETELAH FILE DIPILIH
-                checkBtn.style.display = 'block';
+                const code = event.target.result;
+                cekKode(code, file.name);
             };
-            reader.onerror = function() {
-                alert("Gagal membaca file. Pastikan file ada di memori HP.");
-            }
             reader.readAsText(file);
         });
 
-        function prosesCek() {
-            if (!fileCode || fileCode.trim() === "") {
-                alert("File kosong atau gagal dibaca. Pastikan Anda memilih file .js yang benar (bukan dari cache WhatsApp).");
-                return;
-            }
-            
-            checkBtn.style.display = 'none';
-            errorBox.style.display = 'none';
-            warningBox.style.display = 'none';
-            successBox.style.display = 'none';
-
+        function cekKode(code, filename) {
+            // 1. CEK SINTAKS DASAR DENGAN ACORN
             try {
-                Acorn.parse(fileCode, { 
+                acorn.parse(code, { 
                     ecmaVersion: 'latest', 
-                    sourceType: 'script',
+                    sourceType: 'module', // Diubah ke module agar support import/export
                     allowReturnOutsideFunction: true,
                     allowAwaitOutsideFunction: true 
                 });
             } catch (error) {
                 let errorMsg = error.message;
                 let loc = error.loc || { line: 0, column: 0 };
-                let lines = fileCode.split('\n');
+                let lines = code.split('\n');
                 let errorLine = loc.line || 1;
                 let startLine = Math.max(1, errorLine - 2);
                 let endLine = Math.min(lines.length, errorLine + 2);
@@ -214,10 +189,13 @@
                 return;
             }
 
+            // 2. CEK TYPO / VARIABEL MENGGUNAKAN ESLINT
             try {
                 const linter = new Linter();
                 
+                // Tambahan Global Node.js & Bot WA agar tidak dianggap typo
                 const botGlobals = {
+                    // Bot WA / Baileys
                     sock: "readonly", conn: "readonly", client: "readonly", Gren: "readonly",
                     m: "readonly", from: "readonly", sender: "readonly", target: "readonly", 
                     chat: "readonly", jid: "readonly", reply: "readonly", args: "readonly",
@@ -226,13 +204,18 @@
                     pushName: "readonly", senderNumber: "readonly", mediaBuffer: "readonly", mediaType: "readonly",
                     baileys: "readonly", proto: "readonly", WAProto: "readonly",
                     PREFIX: "readonly", BOT_NAME: "readonly", OWNER: "readonly", OWNER_NUMBER: "readonly",
-                    startSender: "readonly", activeSenderSocks: "readonly", mainSock: "readonly"
+                    startSender: "readonly", activeSenderSocks: "readonly", mainSock: "readonly",
+
+                    // Node.js Globals
+                    require: "readonly", module: "readonly", exports: "readonly",
+                    process: "readonly", __dirname: "readonly", __filename: "readonly",
+                    console: "readonly", Buffer: "readonly", setTimeout: "readonly", setInterval: "readonly"
                 };
 
-                const messages = linter.verify(fileCode, {
+                const messages = linter.verify(code, {
                     env: { es2021: true, node: true, browser: false },
                     globals: botGlobals,
-                    parserOptions: { ecmaVersion: 'latest', sourceType: 'script' },
+                    parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
                     rules: {
                         'no-undef': 'error',
                         'no-dupe-keys': 'error',
@@ -242,13 +225,14 @@
                         'no-unused-vars': 'off',
                         'no-console': 'off'
                     }
-                }, { filename: fileNameStr || 'index.js' });
+                }, { filename: filename || 'index.js' });
 
                 const fatalErrors = messages.filter(m => m.severity === 2);
                 const warnings = messages.filter(m => m.severity === 1);
 
                 let hasOutput = false;
 
+                // Tampilkan Peringatan
                 if (warnings.length > 0) {
                     let html = '<ul class="error-list">';
                     warnings.forEach(w => {
@@ -260,6 +244,7 @@
                     hasOutput = true;
                 }
 
+                // Tampilkan Error Typo
                 if (fatalErrors.length > 0) {
                     let html = '<ul class="error-list">';
                     fatalErrors.forEach(w => {
@@ -278,6 +263,7 @@
                     hasOutput = true;
                 }
 
+                // Jika tidak ada error/warning sama sekali
                 if (!hasOutput) {
                     successBox.style.display = 'block';
                 }
@@ -293,9 +279,7 @@
 
         function resetApp() {
             fileInput.value = "";
-            fileCode = "";
             fileInfo.style.display = 'none';
-            checkBtn.style.display = 'none';
             errorBox.style.display = 'none';
             warningBox.style.display = 'none';
             successBox.style.display = 'none';
