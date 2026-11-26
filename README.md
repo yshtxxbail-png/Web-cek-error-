@@ -136,11 +136,15 @@
             const file = e.target.files[0];
             if (!file) return;
 
-            fileNameStr = file.name;
-            fileName.textContent = file.name;
+            // Ambil nama asli file (jika ter-encode URL, decode dulu)
+            let rawName = decodeURIComponent(file.name);
+            fileNameStr = rawName;
+            
+            fileName.textContent = rawName;
             fileSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
             fileInfo.style.display = 'flex';
 
+            // Sembunyikan hasil sebelumnya
             errorBox.style.display = 'none';
             warningBox.style.display = 'none';
             successBox.style.display = 'none';
@@ -152,13 +156,20 @@
             const reader = new FileReader();
             reader.onload = function(event) {
                 fileCode = event.target.result;
+                // TOMBOL CEK SELALU MUNCUL SETELAH FILE DIPILIH
                 checkBtn.style.display = 'block';
             };
+            reader.onerror = function() {
+                alert("Gagal membaca file. Pastikan file ada di memori HP.");
+            }
             reader.readAsText(file);
         });
 
         function prosesCek() {
-            if (!fileCode) return;
+            if (!fileCode || fileCode.trim() === "") {
+                alert("File kosong atau gagal dibaca. Pastikan Anda memilih file .js yang benar (bukan dari cache WhatsApp).");
+                return;
+            }
             
             checkBtn.style.display = 'none';
             errorBox.style.display = 'none';
